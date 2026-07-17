@@ -1,22 +1,55 @@
 # AI Resume Analyzer & ATS Score Checker
 
-A web app that uses **Google Gemini 2.5 Flash** to analyze a student's resume against a job description, calculate an **ATS compatibility score**, identify **skill gaps**, and generate **improved bullet points**.
+A web app that uses **Google Gemini 3.5 Flash** to analyze a student's resume against a job description, calculate an **ATS compatibility score**, identify **skill gaps**, and generate **improved bullet points**.
 
 ## Architecture
 
-```
-User (React) → POST /analyze (FastAPI) → pdfplumber extracts PDF text
-                                      → Gemini AI returns JSON
-                                      → Dashboard displays score, keywords, bullets
-```
+                    +----------------+
+                    | React (Vite)   |
+                    +-------+--------+
+                            |
+                     HTTP REST API
+                            |
+                            v
+                    +----------------+
+                    | FastAPI Backend|
+                    +-------+--------+
+                            |
+          +-----------------+-----------------+
+          |                                   |
+          v                                   v
+    pdfplumber                      Google Gemini 3.5 Flash
+ (Resume Extraction)                 AI Resume Analysis
+
 
 ## Tech Stack
 
-| Layer    | Stack                                      |
-| -------- | ------------------------------------------ |
-| Frontend | React, Vite, Tailwind CSS                  |
-| Backend  | FastAPI, pdfplumber, google-generativeai   |
-| AI       | Google Gemini 2.5 Flash                    |
+| Layer | Stack |
+|-------|-------|
+| Frontend | React, Vite, Tailwind CSS |
+| Backend | FastAPI, pdfplumber |
+| AI | Google Gemini 3.5 Flash (google-genai SDK) |
+| Language | Python, JavaScript |
+
+## Features
+- Upload PDF resumes
+- ATS compatibility scoring
+- AI-powered resume analysis
+- Skill gap identification
+- Matched and missing keyword detection
+- Resume improvement suggestions
+- Weak bullet point identification
+- Improved bullet point generation
+- REST API using FastAPI
+- Responsive React frontend
+
+## Recent Improvements
+
+- Migrated from deprecated `google-generativeai` SDK to the latest `google-genai` SDK.
+- Updated Gemini integration to support Gemini 3.5 Flash.
+- Improved JSON parsing and prompt handling.
+- Enhanced backend stability and error handling.
+
 
 ## Quick Start (Local)
 
@@ -36,6 +69,9 @@ python -m venv venv
 
 # Windows
 venv\Scripts\activate
+
+# macOS/Linux
+source venv/bin/activate
 
 pip install -r requirements.txt
 copy .env.example .env
@@ -91,18 +127,6 @@ Open http://localhost:5173
 }
 ```
 
-### Connect Local Project to GitHub
-
-```bash
-git remote add origin https://github.com/yourusername/ai-resume-analyzer.git
-```
-
-### Push Code to GitHub
-
-```bash
-git branch -M main
-git push -u origin main
-```
 
 ### Future Updates
 
@@ -150,18 +174,68 @@ https://ai-resume-analyzer-frontend-plum.vercel.app/
 ## Project Structure
 
 ```
-├── backend/
-│   ├── main.py           # FastAPI app + CORS + /analyze
-│   ├── pdf_extractor.py  # pdfplumber + text cleaning
-│   ├── ai_service.py     # Gemini prompt + JSON parsing
-│   └── requirements.txt
-├── frontend/
-│   └── src/
-│       ├── App.jsx
-│       ├── api.js
-│       └── components/   # Upload, Score, Keywords, Bullets
-└── README.md
+backend/
+│
+├── main.py
+├── ai_service.py
+├── pdf_extractor.py
+├── requirements.txt
+├── .env.example
+│
+frontend/
+│
+├── src/
+├── public/
+├── package.json
+│
+README.md
 ```
+
+## Environment Variables
+
+### Backend (`backend/.env`)
+
+Create a `.env` file inside the `backend` directory and add the following:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+ALLOWED_ORIGINS=http://localhost:5173
+```
+
+### Frontend (`frontend/.env`)
+
+Create a `.env` file inside the `frontend` directory and add the following:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+> **Production Deployment**
+>
+> Update these values after deployment:
+>
+> - `ALLOWED_ORIGINS=https://your-frontend.vercel.app`
+> - `VITE_API_URL=https://your-backend.onrender.com`
+
+## Resume Analysis Includes
+
+- ATS Score (0–100)
+- Skill Match Analysis
+- Missing Skills
+- Resume Strengths
+- Resume Weaknesses
+- AI Feedback
+- Resume Bullet Improvements
+
+
+## Future Enhancements
+
+- Resume PDF report generation
+- AI Cover Letter Generator
+- AI Interview Question Generator
+- Resume Version History
+- Authentication
+- User Dashboard
 
 ## License
 
