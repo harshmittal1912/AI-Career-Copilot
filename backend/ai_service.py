@@ -2,60 +2,100 @@ import json
 import os
 import re
 
-import google.generativeai as genai
 from dotenv import load_dotenv
+from google import genai
+from google.genai.types import GenerateContentConfig
 
 load_dotenv()
 
-ANALYSIS_PROMPT = """You are an expert ATS (Applicant Tracking System) and resume coach.
-Analyze the resume against the job description below.
+PROMPT = """
+You are an expert ATS (Applicant Tracking System) and resume coach.
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
+Analyze the resume against the job description.
+
+Return ONLY valid JSON.
+
 {{
-  "ats_score": <integer 0-100>,
-  "score_reason": "<one sentence explanation>",
-  "matched_keywords": ["keyword1", "keyword2"],
-  "missing_keywords": ["keyword1", "keyword2"],
-  "weak_bullets": ["original bullet 1"],
-  "improved_bullets": ["improved version 1"],
-  "top_feedback": ["tip 1", "tip 2", "tip 3"]
+    "ats_score": 0,
+    "score_reason": "",
+    "matched_keywords": [],
+    "missing_keywords": [],
+    "weak_bullets": [],
+    "improved_bullets": [],
+    "top_feedback": []
 }}
 
 Rules:
-- matched_keywords: skills/terms from the JD that clearly appear in the resume (max 15)
-- missing_keywords: important JD keywords absent or weak in the resume (max 15)
-- weak_bullets: 2-4 weak resume bullets copied or paraphrased from the resume
-- improved_bullets: same count as weak_bullets, each rewritten with metrics and JD keywords
-- top_feedback: exactly 3 actionable tips for this candidate
+- ats_score must be between 0 and 100.
+- matched_keywords: max 15
+- missing_keywords: max 15
+- weak_bullets: 2-4 bullets
+- improved_bullets: same count as weak_bullets
+- top_feedback: exactly 3 items.
 
-RESUME:
-{resume_text}
+Resume:
 
-JOB DESCRIPTION:
-{job_description}
+{resume}
+
+Job Description:
+
+{jd}
 """
 
 
-def _get_model() -> genai.GenerativeModel:
+def _client():
     api_key = os.getenv("GEMINI_API_KEY")
+
     if not api_key:
         raise RuntimeError(
-            "GEMINI_API_KEY is not set. Copy .env.example to .env and add your key."
+            "GEMINI_API_KEY not found. Add it to backend/.env"
         )
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-2.5-flash")
+
+    return genai.Client(api_key=api_key)
 
 
-def _parse_json_response(raw: str) -> dict:
-    text = raw.strip()
-    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-    if fence_match:
-        text = fence_match.group(1).strip()
+def _extract_json(text: str):
+    text = text.strip()
 
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"AI returned invalid JSON: {exc}") from exc
+    m = re.search(r"```json(.*?)```", text, re.DOTALL)
+
+    if m:
+        text = m.group(1).strip()
+
+    return json.loads(text)
+
+
+def analyze_resume(resume_text: str, job_description: str):
+
+    if not job_description.strip():
+        raise ValueError("Job description cannot be empty.")
+
+    prompt = PROMPT.format(
+        resume=resume_text[:12000],
+        jd=job_description[:8000],
+    )
+
+    client = _client()
+
+    print("========== GEMINI REQUEST ==========")
+
+    response = client.models.generate_content(
+        model="gemini-3.5-flash",
+        contents=prompt,
+        config=GenerateContentConfig(
+            temperature=0.2,
+            response_mime_type="application/json",
+        ),
+    )
+
+    print("========== GEMINI RESPONSE ==========")
+    print(response.text)
+    print("====================================")
+
+    if not response.text:
+        raise RuntimeError("Gemini returned an empty response.")
+
+    data = _extract_json(response.text)
 
     required = [
         "ats_score",
@@ -66,33 +106,14 @@ def _parse_json_response(raw: str) -> dict:
         "improved_bullets",
         "top_feedback",
     ]
+
     for key in required:
         if key not in data:
-            raise ValueError(f"AI response missing required field: {key}")
+            raise RuntimeError(f"Missing key: {key}")
 
-    data["ats_score"] = max(0, min(100, int(data["ats_score"])))
+    data["ats_score"] = max(
+        0,
+        min(100, int(data["ats_score"]))
+    )
+
     return data
-
-
-def analyze_resume(resume_text: str, job_description: str) -> dict:
-    if not job_description.strip():
-        raise ValueError("Job description cannot be empty.")
-
-    model = _get_model()
-    prompt = ANALYSIS_PROMPT.format(
-        resume_text=resume_text[:12000],
-        job_description=job_description[:8000],
-    )
-
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.GenerationConfig(
-            temperature=0.3,
-            response_mime_type="application/json",
-        ),
-    )
-
-    if not response.text:
-        raise ValueError("Empty response from Gemini API.")
-
-    return _parse_json_response(response.text)
